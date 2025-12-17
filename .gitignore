@@ -1,0 +1,18 @@
+*
+
+# @basics
+!.gitignore
+!package.json
+!tsconfig.json
+!types.d.ts
+
+# @docs
+!docs/
+!docs/**
+
+# @library
+!lib/
+!lib/*
+
+# @entry
+!index.ts

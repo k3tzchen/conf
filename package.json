@@ -1,0 +1,30 @@
+{
+  "name": "@k3tzchen/conf",
+  "description": "A type-safe, versioned configuration loader for my projects. Built for reliability, maintainability and ease of use.",
+  "version": "1.0",
+  "author": {
+    "name": "k3tzchen",
+    "url": "https://github.com/k3tzchen"
+  },
+  "license": "MIT",
+  "repository": {
+    "url": "https://github.com/k3tzchen/conf"
+  },
+  "main": "index.ts",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "keywords": [
+    "bun",
+    "typescript",
+    "config"
+  ],
+  "type": "module"
+}
