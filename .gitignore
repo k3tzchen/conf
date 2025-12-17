@@ -1,6 +1,7 @@
 *
 
 # @basics
+!LICENSE
 !.gitignore
 !package.json
 !tsconfig.json
