@@ -1,3 +1,5 @@
+import './types.d.ts';
+
 import { isBun } from 'process';
 import Throwable from './lib/Throwable';
 
@@ -23,7 +25,7 @@ async function configDirExists(): Promise<boolean> {
   }
 }
 
-function makeConfigPath<K extends keyof ConfLoaderRegistry, V extends (VersionString & keyof ConfLoaderRegistry[K])>(name: K, version: V | 'latest' = 'latest'): string {
+function makeConfigPath<K extends keyof ConfLoaderRegistry, V extends ConfigVersions<K>>(name: K, version: V | 'latest' = 'latest'): string {
   return join(ConfigDir.name!, `${normalize(name)}/${version}.toml`);
 }
 
@@ -34,7 +36,7 @@ function makeConfigPath<K extends keyof ConfLoaderRegistry, V extends (VersionSt
  *
  * @throws when the .config path does not exists in the root directory
  */
-export async function exists<K extends keyof ConfLoaderRegistry, V extends (VersionString & keyof ConfLoaderRegistry[K])>(name: K, version: V | 'latest' = 'latest'): Promise<boolean> {
+export async function exists<K extends keyof ConfLoaderRegistry, V extends ConfigVersions<K>>(name: K, version: V | 'latest' = 'latest'): Promise<boolean> {
   if (!(await configDirExists())) {
     throw new Throwable('ReferenceError', `'${ConfigDir.name!}': No such directory`, "Create a '.config' in the root of your project folder");
   }
@@ -60,7 +62,7 @@ export async function exists<K extends keyof ConfLoaderRegistry, V extends (Vers
  *
  * @throws if the config does not exist, or the given version does not exist.
  */
-export async function load<K extends keyof ConfLoaderRegistry, V extends (VersionString & keyof ConfLoaderRegistry[K])>(name: K, version: V | 'latest' = 'latest'): Promise<Config<K, V>> {
+export async function load<K extends keyof ConfLoaderRegistry, V extends ConfigVersions<K>>(name: K, version: V | 'latest' = 'latest'): Promise<Config<K, V>> {
   version = await VersionManager.resolve<K, V>(name, version);
 
   const cacheKey = `${name}@${version}`;
@@ -72,7 +74,7 @@ export async function load<K extends keyof ConfLoaderRegistry, V extends (Versio
     }
 
     const ConfigFile = Bun.file(configPath);
-    ConfigCache.set(cacheKey, new Config<K, V>(Toml.parse<ConfigType<K, V>>(await ConfigFile.text())));
+    ConfigCache.set(cacheKey, new Config<K, V>(Toml.parse<ConfigPresetType<K, V>>(await ConfigFile.text())));
   }
 
   return ConfigCache.get(cacheKey)!;
@@ -85,7 +87,7 @@ export async function load<K extends keyof ConfLoaderRegistry, V extends (Versio
  *
  * @throws when `overwriteExisting` is not given or set to false and the config with that name and version already exists.
  */
-export async function write<K extends keyof ConfLoaderRegistry, V extends (VersionString & keyof ConfLoaderRegistry[K])>({ name, version, preset, allowOverwrites = false }: WriteOptions<K, V>): Promise<void> {
+export async function write<K extends keyof ConfLoaderRegistry, V extends ConfigVersions<K>>({ name, version, preset, allowOverwrites = false }: WriteOptions<K, V>): Promise<void> {
   const configPath = makeConfigPath(name, VersionManager.convert(version));
   if (await exists(name, version as V) && !allowOverwrites) {
     throw new Throwable('IOError', `Tried to overwrite '${configPath}'`, 'If this was intentional include the field `allowOverwrites: true` in your WriteOptions.');
@@ -103,7 +105,7 @@ export async function write<K extends keyof ConfLoaderRegistry, V extends (Versi
 }
 
 /** Migrates a config from one version to another. Returns a function for optional deletion of the old config file. */
-export async function migrate<K extends keyof ConfLoaderRegistry, O extends (VersionString & keyof ConfLoaderRegistry[K]), V extends Exclude<(VersionString & keyof ConfLoaderRegistry[K]), O>>(name: K, oldVersion: O, newVersion: V, callback: (oldVer: Config<K, O>) => ConfigType<K, V> | Promise<ConfigType<K, V>>): Promise<() => Promise<void>> {
+export async function migrate<K extends keyof ConfLoaderRegistry, O extends ConfigVersions<K>, V extends ConfigVersions<K, O>>(name: K, oldVersion: O, newVersion: V, callback: (oldVer: Config<K, O>) => ConfigPresetType<K, V> | Promise<ConfigPresetType<K, V>>): Promise<() => Promise<void>> {
   if (typeof callback != 'function') {
     throw new Throwable('TypeError', 'Callback was expected to be a function');
   }

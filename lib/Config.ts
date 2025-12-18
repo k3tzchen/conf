@@ -51,17 +51,50 @@ namespace Utils {
     return [block, i + 1];
   }
 
+  export function tokenizeCondition(str: string): string[] {
+    const tokens: string[] = [];
+    let i = 0;
+    let current = '';
+    let depth = 0;
+
+    while (i < str.length) {
+      if (str[i] === '(') {
+        depth++;
+        current += str[i];
+      } else if (str[i] === ')') {
+        depth--;
+        current += str[i];
+      } else if (depth === 0) {
+        const token = str.slice(i, i + 3).toLowerCase().trimEnd();
+        if (token === 'and' && /\s/.test(str[i - 1] || '') && /\s/.test(str[i + 3] || '')) {
+          if (current.trim()) tokens.push(current.trim());
+          tokens.push(token);
+          current = '';
+          i += 2;
+        } else if (token === 'or' && /\s/.test(str[i - 1] || '') && /\s/.test(str[i + 2] || '')) {
+          if (current.trim()) tokens.push(current.trim());
+          tokens.push(token);
+          current = '';
+          i += 1;
+        } else current += str[i];
+      } else current += str[i];
+      i++;
+    }
+
+    if (current.trim()) tokens.push(current.trim());
+    return tokens;
+  }
 }
 
 const ConditionOperators = ['equals', 'startswith', 'endswith', 'contains', '>', '>=', '<', '<='] as const;
 type ConditionOperator = typeof ConditionOperators[number];
 
-export default class Config<K extends keyof ConfLoaderRegistry, V extends (VersionString & keyof ConfLoaderRegistry[K])> {
-  #config: Partial<ConfigType<K, V>> = {};
-  #bank = new Map<ConfigVariableKey<ConfigType<K, V>>, string | void>;
-  #dependencies = new Map<ConfigVariableKey<ConfigType<K, V>>, Set<ConfigVariableKey<ConfigType<K, V>>>>();
+export default class Config<K extends keyof ConfLoaderRegistry, V extends ConfigVersions<K>> {
+  #config: Partial<ConfigPresetType<K, V>> = {};
+  #bank = new Map<ConfigVariableKey<ConfigPresetType<K, V>>, string | void>;
+  #dependencies = new Map<ConfigVariableKey<ConfigPresetType<K, V>>, Set<ConfigVariableKey<ConfigPresetType<K, V>>>>();
 
-  #resolveConfigPath(path: ConfigVariableKey<ConfigType<K, V>>): any {
+  #resolveConfigPath(path: ConfigVariableKey<ConfigPresetType<K, V>>): any {
     if (path == void 0 || !(path as string)?.trim()) return void 0;
 
     return (path as string).split('.').reduce((obj, key) => obj?.[key], this.#config as any);
@@ -159,40 +192,6 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
       }
     };
 
-    function tokenizeCondition(str: string): string[] {
-      const tokens: string[] = [];
-      let i = 0;
-      let current = '';
-      let depth = 0;
-
-      while (i < str.length) {
-        if (str[i] === '(') {
-          depth++;
-          current += str[i];
-        } else if (str[i] === ')') {
-          depth--;
-          current += str[i];
-        } else if (depth === 0) {
-          const token = str.slice(i, i + 3).toLowerCase().trimEnd();
-          if (token === 'and' && /\s/.test(str[i - 1] || '') && /\s/.test(str[i + 3] || '')) {
-            if (current.trim()) tokens.push(current.trim());
-            tokens.push(token);
-            current = '';
-            i += 2;
-          } else if (token === 'or' && /\s/.test(str[i - 1] || '') && /\s/.test(str[i + 2] || '')) {
-            if (current.trim()) tokens.push(current.trim());
-            tokens.push(token);
-            current = '';
-            i += 1;
-          } else current += str[i];
-        } else current += str[i];
-        i++;
-      }
-
-      if (current.trim()) tokens.push(current.trim());
-      return tokens;
-    }
-
     const evalLogical = (cond: string): boolean => {
       cond = cond.trim();
 
@@ -213,7 +212,7 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
 
       if (/^not\s+/i.test(cond)) return !evalLogical(cond.replace(/^not\s+/i, ''));
 
-      const tokens = tokenizeCondition(cond);
+      const tokens = Utils.tokenizeCondition(cond);
       if (tokens.length === 1) return evalComparison(tokens[0]!);
 
       let result: boolean | undefined = undefined;
@@ -256,7 +255,7 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
     return content;
   }
 
-  #resolveVariableChain(str: string, variable: ConfigVariableKey<ConfigType<K, V>>, chain: string[]): string {
+  #resolveVariableChain(str: string, variable: ConfigVariableKey<ConfigPresetType<K, V>>, chain: string[]): string {
     if (!variable) return str;
     const nextChain = [...chain, variable];
     if (chain.includes(variable)) {
@@ -274,7 +273,7 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
     const cached = this.#bank.get(variable);
     if (chain.length > 0) {
       let deps = this.#dependencies.get(variable) ?? new Set();
-      chain.forEach(dep => deps.add(dep as ConfigVariableKey<ConfigType<K, V>>));
+      chain.forEach(dep => deps.add(dep as ConfigVariableKey<ConfigPresetType<K, V>>));
       this.#dependencies.set(variable, deps);
     }
 
@@ -302,8 +301,8 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
     return Utils.parsePrimitiveValue(value);
   }
 
-  get<S extends ConfigVariableKey<ConfigType<K, V>>[]>(...keys: S): PickConfigObject<ConfigType<K, V>, S> {
-    const result: PickConfigObject<ConfigType<K, V>, S> = {} as any;
+  get<S extends ConfigVariableKey<ConfigPresetType<K, V>>[]>(...keys: S): PickConfigObject<ConfigPresetType<K, V>, S> {
+    const result: PickConfigObject<ConfigPresetType<K, V>, S> = {} as any;
 
     for (const key of keys) {
       const parts = (key as string).split('.');
@@ -324,8 +323,8 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
     return result;
   }
 
-  raw<S extends ConfigVariableKey<ConfigType<K, V>>[]>(...keys: S): PickConfigObject<ConfigType<K, V>, S> {
-    const result: PickConfigObject<ConfigType<K, V>, S> = {} as any;
+  raw<S extends ConfigVariableKey<ConfigPresetType<K, V>>[]>(...keys: S): PickConfigObject<ConfigPresetType<K, V>, S> {
+    const result: PickConfigObject<ConfigPresetType<K, V>, S> = {} as any;
 
     for (const key of keys) {
       const parts = (key as string).split('.');
@@ -350,7 +349,7 @@ export default class Config<K extends keyof ConfLoaderRegistry, V extends (Versi
     return Bun.hash(JSON.stringify(this.#config, void 0, 2)).toString(16);
   }
 
-  constructor(config: ConfigType<K, V>) {
-    this.#config = Utils.ensureObject<Partial<ConfigType<K, V>>>(config, {});
+  constructor(config: ConfigPresetType<K, V>) {
+    this.#config = Utils.ensureObject<Partial<ConfigPresetType<K, V>>>(config, {});
   }
 }

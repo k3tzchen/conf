@@ -46,7 +46,7 @@ export function parse(version: VersionString | number): VersionObject {
   }
 }
 
-export async function resolve<K extends keyof ConfLoaderRegistry, V extends VersionString>(name: K, version?: any): Promise<V> {
+export async function resolve<K extends keyof ConfLoaderRegistry, V extends ConfigVersions<K>>(name: K, version?: any): Promise<V> {
   if ((version as (V | 'latest')) == 'latest') {
     version = void 0;
 
